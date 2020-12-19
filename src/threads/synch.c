@@ -50,6 +50,32 @@ sema_init (struct semaphore *sema, unsigned value)
   list_init (&sema->waiters);
 }
 
+/* Returns true if priority A is less than priority B, false
+   otherwise. */
+static bool
+value_less (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct thread *a = list_entry(a_, struct thread, elem);
+  const struct thread *b = list_entry(b_, struct thread, elem);
+  
+  return (a->priority < b->priority);
+}
+
+/* Sets current thread priority to maximum priority of current 
+    threads waiting for the lock. */
+void
+donate_priority (struct lock *lock ,struct thread *current_thread)
+{
+  if (list_empty(&lock->semaphore.waiters)){
+      thread_set_priority (current_thread->original_priority);
+  }
+  struct list_elem *max_elem = list_max (&lock->semaphore.waiters, value_less, NULL);
+  struct thread *max_thread = list_entry (max_elem, struct thread, elem);
+
+  thread_set_priority (max_thread->priority);
+}
+
 /* Down or "P" operation on a semaphore.  Waits for SEMA's value
    to become positive and then atomically decrements it.
 
@@ -99,18 +125,6 @@ sema_try_down (struct semaphore *sema)
   intr_set_level (old_level);
 
   return success;
-}
-
-/* Returns true if priority A is less than priority B, false
-   otherwise. */
-static bool
-value_less (const struct list_elem *a_, const struct list_elem *b_,
-            void *aux UNUSED) 
-{
-  const struct thread *a = list_entry(a_, struct thread, elem);
-  const struct thread *b = list_entry(b_, struct thread, elem);
-  
-  return (a->priority < b->priority);
 }
 
 /* Up or "V" operation on a semaphore.  Increments SEMA's value
@@ -213,7 +227,10 @@ lock_acquire (struct lock *lock)
   ASSERT (!lock_held_by_current_thread (lock));
 
   sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
+  struct thread *current_thread = thread_current ();
+  list_push_back (&current_thread->locks_list, &lock->lockelem);
+  donate_priority (lock, current_thread);
+  lock->holder = current_thread;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -247,6 +264,9 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  list_remove (&lock->lockelem);
+  struct thread *current_thread = thread_current ();
+  donate_priority (lock, current_thread);
   lock->holder = NULL;
   sema_up (&lock->semaphore);
 }

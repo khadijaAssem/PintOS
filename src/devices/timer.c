@@ -110,8 +110,10 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks (); 
 
   ASSERT (intr_get_level () == INTR_ON);
+  
   if (ticks <= 0)
-  return;
+      return;
+
   struct thread *t = thread_current ();
   t->wake_up_time = start + ticks;
   list_insert_ordered (&time_sleep_list, &t->elem, value_less, NULL);
