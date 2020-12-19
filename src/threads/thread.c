@@ -54,6 +54,9 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
+/* Yeilding Thread. */
+// struct lock yeild_lock;         /* lock to synchronize the scheduling process */
+
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
@@ -98,6 +101,28 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+}
+
+/* Returns true if priority A is less than priority B, false
+   otherwise. */
+static bool
+value_less (const struct list_elem *a_, const struct list_elem *b_,
+            void *aux UNUSED) 
+{
+  const struct thread *a = list_entry(a_, struct thread, elem);
+  const struct thread *b = list_entry(b_, struct thread, elem);
+  
+  return (a->priority < b->priority);
+}
+
+/* checks whether the running priority is of highest priority */
+void 
+check_yield_thread()
+{
+  struct list_elem *max_elem = list_max (&ready_list, value_less, NULL);
+  struct thread *max_thread = list_entry (max_elem, struct thread,elem);
+  if (max_thread->priority > thread_current()->priority)
+      thread_yield();
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -200,6 +225,7 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
+  check_yield_thread ();
 
   return tid;
 }
@@ -256,7 +282,6 @@ struct thread *
 thread_current (void) 
 {
   struct thread *t = running_thread ();
-  
   /* Make sure T is really a thread.
      If either of these assertions fire, then your thread may
      have overflowed its stack.  Each thread has less than 4 kB
@@ -264,7 +289,6 @@ thread_current (void)
      recursion can cause stack overflow. */
   ASSERT (is_thread (t));
   ASSERT (t->status == THREAD_RUNNING);
-
   return t;
 }
 
@@ -305,12 +329,16 @@ thread_yield (void)
   enum intr_level old_level;
   
   ASSERT (!intr_context ());
-
+  // printf("FROM YEILD 01\n");
   old_level = intr_disable ();
+  // printf("FROM YEILD 02\n");
   if (cur != idle_thread) 
     list_push_back (&ready_list, &cur->elem);
+  // printf("FROM YEILD 03\n");
   cur->status = THREAD_READY;
+  // printf("FROM YEILD 04\n");
   schedule ();
+  // printf("FROM YEILD 05\n");
   intr_set_level (old_level);
 }
 
@@ -336,6 +364,7 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  check_yield_thread();
 }
 
 /* Returns the current thread's priority. */
