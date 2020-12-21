@@ -93,6 +93,7 @@ struct thread
     int64_t wake_up_time;               /* Wake up time. */
     struct list_elem allelem;           /* List element for all threads list. */
     struct list locks_list;             /* List of locks the thread is waiting for. */
+    struct lock *lock_waiting;
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
@@ -143,5 +144,6 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 void check_yield_thread(void);
+void update_and_reorder(struct thread *lock_holder);
 
 #endif /* threads/thread.h */
