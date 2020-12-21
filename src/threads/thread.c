@@ -264,6 +264,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
+  // list_insert_ordered (&ready_list, &t->elem, value_less, NULL);
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
@@ -330,16 +331,12 @@ thread_yield (void)
   enum intr_level old_level;
   
   ASSERT (!intr_context ());
-  // printf("FROM YEILD 01\n");
   old_level = intr_disable ();
-  // printf("FROM YEILD 02\n");
   if (cur != idle_thread) 
+    // list_insert_ordered (&ready_list, &cur->elem, value_less, NULL);
     list_push_back (&ready_list, &cur->elem);
-  // printf("FROM YEILD 03\n");
   cur->status = THREAD_READY;
-  // printf("FROM YEILD 04\n");
   schedule ();
-  // printf("FROM YEILD 05\n");
   intr_set_level (old_level);
 }
 
