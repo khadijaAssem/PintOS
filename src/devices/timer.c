@@ -46,7 +46,6 @@ wake_up_value_less (const struct list_elem *a_, const struct list_elem *b_,
          || ((a->wake_up_time == b->wake_up_time)&&(a->priority > b->priority)); 
 }
 
-
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
@@ -214,10 +213,20 @@ timer_interrupt(struct intr_frame *args UNUSED)
     else
       break;
   }
+  
+  thread_tick();
+  // update priority for advanced scheduler 
+  if(thread_mlfqs && timer_ticks() % TIMER_FREQ == 0){
+    update_load_avg();
+    update_recent_cpu_for_all_threads();
+  }
+  if(thread_mlfqs && timer_ticks() % 4 == 0)
+    update_priority_for_all_threads();
+
+  
   if(scheduler_picks_another_thread){
     intr_yield_on_return();
   }
-  thread_tick();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
