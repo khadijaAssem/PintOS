@@ -94,6 +94,9 @@ struct thread
     int nice;                           /* nice. */
     fixed_point_t recent_cpu;           /* recent cpu */
  
+    struct list locks_list;             /* List of locks the thread is waiting for. */
+    struct lock *lock_waiting;
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
  
@@ -142,7 +145,8 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-int thread_get_ready_list_size();
+void check_yield_thread(void);
+void update_and_reorder(struct thread *lock_holder);
 
 void check_yield_thread(void);
  
