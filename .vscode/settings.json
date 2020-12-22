@@ -32,6 +32,7 @@
         "limits": "c",
         "stdexcept": "c",
         "streambuf": "c",
-        "string_view": "c"
+        "string_view": "c",
+        "exception": "c"
     }
 }

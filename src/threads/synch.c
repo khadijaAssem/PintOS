@@ -60,7 +60,7 @@ value_less(const struct list_elem *a_, const struct list_elem *b_,
   const struct thread *a = list_entry(a_, struct thread, elem);
   const struct thread *b = list_entry(b_, struct thread, elem);
 
-  return (a->priority < b->priority) || ((a->wake_up_time < b->wake_up_time) && (a->priority == b->priority));
+  return (a->priority < b->priority);
 }
 
 /* Give next maximum priority */

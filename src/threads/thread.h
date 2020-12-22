@@ -94,6 +94,7 @@ struct thread
     struct list_elem allelem;           /* List element for all threads list. */
     struct list locks_list;             /* List of locks the thread is holding. */
     struct lock *blocking_lock;         /* The lock which the thread is waiting for. */
+    int number;                         /* The order of creation of thread */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */

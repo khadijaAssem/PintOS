@@ -31,6 +31,9 @@ static struct list all_list;
 /* Idle thread. */
 static struct thread *idle_thread;
 
+/* Number of threads created */
+static int num;
+
 /* Initial thread, the thread running init.c:main(). */
 static struct thread *initial_thread;
 
@@ -95,7 +98,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
-
+  num = 0;
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -109,10 +112,13 @@ static bool
 value_less (const struct list_elem *a_, const struct list_elem *b_,
             void *aux UNUSED) 
 {
-  const struct thread *a = list_entry(a_, struct thread, elem);
-  const struct thread *b = list_entry(b_, struct thread, elem);
+  struct thread *a = list_entry(a_, struct thread, elem);
+  struct thread *b = list_entry(b_, struct thread, elem);
   
-  return (a->priority < b->priority);
+  bool ret = (a->priority < b->priority) || ((a->priority == b->priority) && (a->number > b->number));
+  // a->number = num + a->number;
+  // b->number = num + b->number;
+  return ret;
 }
 
 /* checks whether the running priority is of highest priority */
@@ -505,6 +511,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->original_priority = priority;
   list_init(&t->locks_list);
   t->blocking_lock = NULL;
+  t->number = num++;
+  // printf ("%d\n",num);
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -535,8 +543,10 @@ next_thread_to_run (void)
 {
   if (list_empty (&ready_list))
     return idle_thread;
-  else
-    return list_entry (list_pop_back (&ready_list), struct thread, elem);
+  // else
+    struct thread *th = list_entry (list_pop_back (&ready_list), struct thread, elem);
+    th->number += num;
+    return th;
 }
 
 /* Completes a thread switch by activating the new thread's page
