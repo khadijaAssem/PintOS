@@ -119,11 +119,14 @@ value_less (const struct list_elem *a_, const struct list_elem *b_,
 void 
 check_yield_thread()
 {
+  list_sort (&ready_list, value_less, NULL);
   struct list_elem *max_elem = list_max (&ready_list, value_less, NULL);
   struct thread *max_thread = list_entry (max_elem, struct thread,elem);
-
+  
   if (max_thread->priority > thread_current()->priority)
+  {
       thread_yield();
+  }
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -264,8 +267,8 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  // list_insert_ordered (&ready_list, &t->elem, value_less, NULL);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered (&ready_list, &t->elem, value_less, NULL);
+  // list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -333,8 +336,8 @@ thread_yield (void)
   ASSERT (!intr_context ());
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    // list_insert_ordered (&ready_list, &cur->elem, value_less, NULL);
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered (&ready_list, &cur->elem, value_less, NULL);
+    // list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -361,7 +364,17 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  //set the new priority to the thread's orginal priority
+  thread_current()->original_priority = new_priority;
+  /* if new_priority less than old_priority and locks_list 
+     is empty then set current thread priority = new_priority*/
+
+  /* if The main thread attempts to lower its priority, 
+      should not take effect until the donation is released. */
+
+  if (new_priority < thread_current()->priority && list_empty(&thread_current()->locks_list))
+    thread_current()->priority = new_priority;
+
   check_yield_thread();
 }
 
@@ -491,6 +504,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->original_priority = priority;
   list_init(&t->locks_list);
+  t->blocking_lock = NULL;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -522,7 +536,7 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    return list_entry (list_pop_back (&ready_list), struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page
