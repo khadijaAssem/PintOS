@@ -115,10 +115,7 @@ value_less (const struct list_elem *a_, const struct list_elem *b_,
   struct thread *a = list_entry(a_, struct thread, elem);
   struct thread *b = list_entry(b_, struct thread, elem);
   
-  bool ret = (a->priority < b->priority) || ((a->priority == b->priority) && (a->number > b->number));
-  // a->number = num + a->number;
-  // b->number = num + b->number;
-  return ret;
+  return (a->priority < b->priority) || ((a->priority == b->priority) && (a->number > b->number));
 }
 
 /* checks whether the running priority is of highest priority */
