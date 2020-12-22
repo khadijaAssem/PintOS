@@ -92,6 +92,8 @@ struct thread
     struct list_elem timerelem;         /* List element for timer threads list. */
     int64_t wake_up_time;               /* Wake up time. */
     struct list_elem allelem;           /* List element for all threads list. */
+    int nice;                           /* nice. */
+    fixed_point_t recent_cpu;           /* recent cpu */
     struct list locks_list;             /* List of locks the thread is holding. */
     struct lock *blocking_lock;         /* The lock which the thread is waiting for. */
     int number;                         /* The order of creation of thread */

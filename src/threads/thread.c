@@ -65,17 +65,26 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
-static void kernel_thread (thread_func *, void *aux);
+static void kernel_thread(thread_func *, void *aux);
 
-static void idle (void *aux UNUSED);
-static struct thread *running_thread (void);
-static struct thread *next_thread_to_run (void);
-static void init_thread (struct thread *, const char *name, int priority);
-static bool is_thread (struct thread *) UNUSED;
-static void *alloc_frame (struct thread *, size_t size);
-static void schedule (void);
-void thread_schedule_tail (struct thread *prev);
-static tid_t allocate_tid (void);
+static void idle(void *aux UNUSED);
+static struct thread *running_thread(void);
+static struct thread *next_thread_to_run(void);
+static void init_thread(struct thread *, const char *name, int priority);
+static bool is_thread(struct thread *) UNUSED;
+static void *alloc_frame(struct thread *, size_t size);
+static void schedule(void);
+void thread_schedule_tail(struct thread *prev);
+static tid_t allocate_tid(void);
+
+static bool
+less(const struct list_elem *e1,
+     const struct list_elem *e2, void *aux UNUSED)
+{
+  struct thread *t1 = list_entry(e1, struct thread, elem);
+  struct thread *t2 = list_entry(e2, struct thread, elem);
+  return (t1->priority < t2->priority);
+}
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -212,9 +221,17 @@ thread_create (const char *name, int priority,
     return TID_ERROR;
 
   /* Initialize thread. */
-  init_thread (t, name, priority);
-  tid = t->tid = allocate_tid ();
-
+  init_thread(t, name, priority);
+  tid = t->tid = allocate_tid();
+  /*set nice value for new thread that equals to parent nice value 
+  and in case of idle_thread it equals to zero
+  set recent_cpu value for new thread that equals to zero*/
+  if(thread_current() != idle_thread)
+    t->nice = thread_current()->nice;
+  else
+    t->nice = 0;
+  t->recent_cpu = int_to_fixed_p(0);
+  
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
@@ -253,6 +270,14 @@ thread_block (void)
   schedule ();
 }
 
+void check_yield_thread()
+{
+  struct list_elem *max_elem = list_max(&ready_list, less, NULL);
+  struct thread *max_thread = list_entry(max_elem, struct thread, elem);
+  if (max_thread->priority > thread_current()->priority)
+    thread_yield();
+}
+
 /* Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
@@ -268,12 +293,11 @@ thread_unblock (struct thread *t)
 
   ASSERT (is_thread (t));
 
-  old_level = intr_disable ();
-  ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered (&ready_list, &t->elem, value_less, NULL);
-  // list_push_back (&ready_list, &t->elem);
+  old_level = intr_disable();
+  ASSERT(t->status == THREAD_BLOCKED);
+  list_push_back(&ready_list, &t->elem);
   t->status = THREAD_READY;
-  intr_set_level (old_level);
+  intr_set_level(old_level);
 }
 
 /* Returns the name of the running thread. */
@@ -295,8 +319,9 @@ thread_current (void)
      have overflowed its stack.  Each thread has less than 4 kB
      of stack, so a few big automatic arrays or moderate
      recursion can cause stack overflow. */
-  ASSERT (is_thread (t));
-  ASSERT (t->status == THREAD_RUNNING);
+  ASSERT(is_thread(t));
+  ASSERT(t->status == THREAD_RUNNING);
+  
   return t;
 }
 
@@ -340,7 +365,6 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread) 
     list_insert_ordered (&ready_list, &cur->elem, value_less, NULL);
-    // list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -418,7 +442,7 @@ thread_get_recent_cpu (void)
   /* Not yet implemented. */
   return 0;
 }
-
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -467,7 +491,7 @@ kernel_thread (thread_func *function, void *aux)
   function (aux);       /* Execute the thread function. */
   thread_exit ();       /* If function() returns, kill the thread. */
 }
-
+
 /* Returns the running thread. */
 struct thread *
 running_thread (void) 
@@ -509,7 +533,6 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init(&t->locks_list);
   t->blocking_lock = NULL;
   t->number = num++;
-  // printf ("%d\n",num);
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
