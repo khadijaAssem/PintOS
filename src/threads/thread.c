@@ -223,6 +223,11 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+ 
+  /* Linking child and parent processes */ 
+  struct thread *parent_thread = thread_current ();
+  parent_thread->child_process = t;
+  t->parent_thread = parent_thread;
 
   /*set nice value for new thread that equals to parent nice value 
   and in case of idle_thread it equals to zero
@@ -232,6 +237,8 @@ thread_create (const char *name, int priority,
   else
     t->nice = 0;
   t->recent_cpu = int_to_fixed_p(0);
+
+  /* Add here link between parent (current thread) and child thread (t) */
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -289,7 +296,6 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   list_insert_ordered (&ready_list, &t->elem, value_less, NULL);
-  // list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -358,7 +364,6 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread) 
     list_insert_ordered (&ready_list, &cur->elem, value_less, NULL);
-    // list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -523,7 +528,10 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init(&t->locks_list);
   t->blocking_lock = NULL;
   t->number = num++;
-  // printf ("%d\n",num);
+
+  sema_init(&t->wait_child, 1);
+  sema_init(&t->parent_child_sync, 0);
+
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();

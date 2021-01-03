@@ -1,9 +1,11 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
+#define USERPROG
 
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 #include "threads/fixed-point.h"
 
 /* States in a thread's life cycle. */
@@ -105,6 +107,11 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    struct thread* child_process;               /* Child of this thread */
+    struct thread* parent_thread;              /* Child of this thread */
+    bool child_success;                        /* Child creation success */
+    struct semaphore parent_child_sync;        /* Semaphore for sync bet. child & parent */
+    struct semaphore wait_child;               /* Semaphore for sync bet. child & parent */
 #endif
 
     /* Owned by thread.c. */
