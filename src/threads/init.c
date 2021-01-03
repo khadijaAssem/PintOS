@@ -1,5 +1,4 @@
 #include "threads/init.h"
-#define USERPROG
 #include <console.h>
 #include <debug.h>
 #include <inttypes.h>
@@ -121,13 +120,13 @@ main (void)
   serial_init_queue ();
   timer_calibrate ();
 
-// #ifdef FILESYS
-//   /* Initialize file system. */
-//   ide_init ();
-//   locate_block_devices ();
-//   filesys_init (format_filesys);
-// #endif
-
+#ifdef FILESYS
+  /* Initialize file system. */
+  ide_init ();
+  locate_block_devices ();
+  filesys_init (format_filesys);
+#endif
+  
   printf ("Boot complete.\n");
   
   /* Run actions specified on kernel command line. */

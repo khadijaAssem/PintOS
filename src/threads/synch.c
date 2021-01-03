@@ -48,6 +48,7 @@ sema_init(struct semaphore *sema, unsigned value)
 
   sema->value = value;
   list_init(&sema->waiters);
+  /* phase-1 */
   sema->lock = NULL;
 }
 
@@ -99,6 +100,7 @@ sema_down(struct semaphore *sema)
   {
     list_push_back (&sema->waiters, &current_thread->elem);
 
+    /* phase-1 */
     if (sema->lock != NULL)
       {
         current_thread->blocking_lock = sema->lock;
@@ -108,6 +110,7 @@ sema_down(struct semaphore *sema)
     thread_block ();
   }
   sema->value--;
+  /* phase-1 */
   if (sema->lock !=NULL)
     {
       thread_current ()->blocking_lock = NULL;
@@ -192,13 +195,15 @@ sema_up(struct semaphore *sema)
     struct thread *current_thread = list_entry (max_elem, struct thread, elem);
     list_remove (max_elem);
 
+    /* phase-1 */
     if (sema->lock != NULL)
       update_lock_priority (sema->lock);
 
     thread_unblock (current_thread);
   }
   sema->value++;
-  check_yield_thread();
+  /* phase-1 */
+  // check_yield_thread();
   intr_set_level(old_level);
 }
 
@@ -282,6 +287,8 @@ lock_acquire(struct lock *lock)
   lock->semaphore.lock = lock;
 
   sema_down(&lock->semaphore);
+  /* mkansh mawgood */ /* phase-1 */
+  lock->holder = thread_current ();
 }
 
 /* Tries to acquires LOCK and returns true if successful or false

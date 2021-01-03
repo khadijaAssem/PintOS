@@ -19,7 +19,7 @@
 #include "threads/vaddr.h"
 
 static thread_func start_process NO_RETURN;
-static bool load(const char *cmdline,const char *exec_name, void (**eip)(void), void **esp);
+static bool load(const char *cmdline, void (**eip)(void), void **esp);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -45,7 +45,7 @@ tid_t process_execute(const char *file_name)
   printf ("(process_execute) : exec_name %s\n",exec_name);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (exec_name, PRI_DEFAULT, start_process, save_ptr);
+  tid = thread_create (exec_name, PRI_DEFAULT, start_process, fn_copy);
 
   // tid = thread_create(exec_name, PRI_DEFAULT, start_process, args);
   
@@ -83,9 +83,7 @@ start_process(void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  char *save_ptr;
-  char *exec_name = strtok_r(file_name, " ", &save_ptr);
-  success = load(file_name, exec_name, &if_.eip, &if_.esp);
+  success = load(file_name, &if_.eip, &if_.esp);
   printf("(start_process) : done loading \n");
   sema_up(&thread_current()->parent_child_sync);
   thread_current()->parent_thread->child_success = success;
@@ -243,7 +241,7 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
-bool load(const char *file_name,const char *exec_name, void (**eip)(void), void **esp)
+bool load(const char *file_name, void (**eip)(void), void **esp)
 {
   struct thread *t = thread_current();
   struct Elf32_Ehdr ehdr;
@@ -260,18 +258,19 @@ bool load(const char *file_name,const char *exec_name, void (**eip)(void), void 
 
   /* Open executable file. */
   printf ("(load) : #1 %s\n",t->name);
+  printf ("(load) : #1 %s\n",file_name);
   file = filesys_open(t->name);
   printf ("(load) : #2 %s\n",file_name);
   if (file == NULL)
   {
-    printf("load: %s: open failed\n", exec_name);
+    printf ("load: %s: open failed\n", t->name);
     goto done;
   }
 
   /* Read and verify executable header. */
   if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr || memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) || ehdr.e_type != 2 || ehdr.e_machine != 3 || ehdr.e_version != 1 || ehdr.e_phentsize != sizeof(struct Elf32_Phdr) || ehdr.e_phnum > 1024)
   {
-    printf("load: %s: error loading executable\n", exec_name);
+    printf("load: %s: error loading executable\n", t->name);
     goto done;
   }
 
@@ -474,6 +473,7 @@ setup_stack(void **esp, const char *file_name)
     else
       palloc_free_page(kpage);
   }
+  printf ("(setup_stack) : %s\n",file_name);
   parse_arg(file_name, esp);
 
   return success;
@@ -482,17 +482,37 @@ setup_stack(void **esp, const char *file_name)
 void parse_arg(const char *file_name, void **esp)
 {
   int argc = 0;
-  char **argv;
+  char *argv [4];
   char **argv_address;
   char *save_ptr;
-  char *token = strtok_r(file_name, " ", &save_ptr) + '/0';
+  char *token = strtok_r(file_name, " ", &save_ptr);
   //strlcat (token, '/0', size_t size)
+  
 
-  while (token != NULL)
-  {
-    argv[argc++] = token;
-    token = strtok_r(NULL, " ", &save_ptr) + '/0';
+  while (token != '\0')
+  { 
+    printf ("(parse_arg) #2 : %s\n",token);
+    argv[argc++] = token + '\0';
+    token = strtok_r(NULL, " ", &save_ptr);
+    printf ("(parse_arg) #3 : %s\n",token);
   }
+
+  printf ("(parse_arg) #4 : %s\n",file_name);
+  printf ("(parse_arg) #5 : %d\n",argc);
+  printf ("(parse_arg) #6 : %ud\n",(unsigned int)esp);
+
+  // /* Start from shell */
+  // char *token = strtok(file_name, " "); 
+  // while (token != NULL) { 
+  //     printf ("(parse_arg) #2 : %s\n",token);
+  //     argv[argc++] = token;
+  //     token = strtok(NULL, " "); 
+  //     printf ("(parse_arg) #3 : %s\n",token);
+  // } 
+  // argv[argc] = NULL;
+  // printf ("(parse_arg) #4 : %s\n",token);
+  /* End from shell */  
+
 
   for (int j = argc - 1; j >= 0; j--)
   {
@@ -523,6 +543,7 @@ void parse_arg(const char *file_name, void **esp)
   void *null_ = NULL;
   *esp -= sizeof(null_);
   memcpy(*esp, &null_, sizeof(null_));
+
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
