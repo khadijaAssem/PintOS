@@ -345,6 +345,7 @@ thread_exit (void)
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
+  printf ("(thread_exit) : process exit done\n");
   intr_disable ();
   list_remove (&thread_current()->allelem);
   thread_current ()->status = THREAD_DYING;
@@ -528,9 +529,17 @@ init_thread (struct thread *t, const char *name, int priority)
   list_init(&t->locks_list);
   t->blocking_lock = NULL;
   t->number = num++;
+  t->child_success = false;
 
-  sema_init(&t->wait_child, 1);
+  list_init(&t->open_file);
+
+  // t->waiting_on = NULL;
+  // t->child_status = 0;
+  // t->fd_last = 0;
+
+  sema_init(&t->wait_child, 0);
   sema_init(&t->parent_child_sync, 0);
+  list_init(&t->children);
 
   t->magic = THREAD_MAGIC;
 

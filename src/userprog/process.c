@@ -56,11 +56,14 @@ tid_t process_execute(const char *file_name)
   if (tid != TID_ERROR && thread_current()->child_success)
   {
       /* Han push */
-      // struct thread *parent_thread = thread_current ();
-      // struct child_process *child = malloc (sizeof(struct *child_process));;
-      // child->pid = tid;
-      // child->t = parent_thread->child_process;
-      // list_push_back(&parent_thread->child_process,&child->childelem);
+      struct thread *parent_thread = thread_current ();
+      struct thread *child = parent_thread->child_thread;
+
+      printf ("(process_execute) : pushing child of tid = %d \n",tid);
+      list_push_back(&parent_thread->children,&child->childelem);
+      // child->t = parent_thread->childsren;
+
+      // list_push_back(&parent_thread->children,&child->childelem);
   }
   else
   {
@@ -148,6 +151,7 @@ int process_wait(tid_t child_tid UNUSED)
 /* Free the current process's resources. */
 void process_exit(void)
 {
+  printf ("(process_exit) : Entered \n");
   struct thread *cur = thread_current();
   uint32_t *pd;
 

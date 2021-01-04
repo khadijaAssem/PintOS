@@ -199,7 +199,30 @@ int write(int fd, const void *buffer, unsigned size)
  
 void exit(int status)
 {
-  thread_exit();
+  // printf ("(exit) : begin exiting\n");
+  int size = list_size (&thread_current()->children);
+  int cnt = 0;
+  struct list_elem *e = list_head(&thread_current()->children);
+  // printf ("(exit) : child list size %d\n", size);
+  // printf ("(exit) : %d\n",cnt < size); 
+  while (cnt < size)
+  {
+    e = list_next(e);
+    cnt ++;
+    //printf ("(exit) : ANA FL LOOP YA TE3EM\n");
+    struct thread *child = list_entry(e, struct thread, childelem);
+    printf ("(exit) : ANA FL LOOP YA TE3EM child PID : %d\n",size);
+    sema_up(&child->parent_child_sync);
+    
+  }
+  // printf ("(exit) : loop is done\n");
+ 
+  // struct list *open_list = &thread_current()->open_file;
+  // for (e = list_begin(open_list); e != list_end(open_list); e = list_next(e))
+  // {
+  //   struct open_file *file = list_entry(e, struct open_file, fileelem);
+  //   file_close(file->ptr);
+  // }
 }
  
 int exec(const char *cmd_line)
