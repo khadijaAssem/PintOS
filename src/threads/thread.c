@@ -533,7 +533,7 @@ init_thread (struct thread *t, const char *name, int priority)
 
   list_init(&t->open_file);
 
-  // t->waiting_on = NULL;
+  t->waiting_on = -1;
   // t->child_status = 0;
   // t->fd_last = 0;
 

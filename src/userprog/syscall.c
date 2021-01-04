@@ -199,12 +199,15 @@ int write(int fd, const void *buffer, unsigned size)
  
 void exit(int status)
 {
-  // printf ("(exit) : begin exiting\n");
-  int size = list_size (&thread_current()->children);
+  printf ("(exit) : status %d \n",status);
+  // status : 0 success , non-zero error
+
+  printf ("(exit) : begin exiting\n");
+  struct thread *current_thread = thread_current ();
+  int size = list_size (&thread_current()->children);  
   int cnt = 0;
   struct list_elem *e = list_head(&thread_current()->children);
-  // printf ("(exit) : child list size %d\n", size);
-  // printf ("(exit) : %d\n",cnt < size); 
+
   while (cnt < size)
   {
     e = list_next(e);
@@ -213,7 +216,6 @@ void exit(int status)
     struct thread *child = list_entry(e, struct thread, childelem);
     printf ("(exit) : ANA FL LOOP YA TE3EM child PID : %d\n",size);
     sema_up(&child->parent_child_sync);
-    
   }
   // printf ("(exit) : loop is done\n");
  

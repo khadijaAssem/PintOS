@@ -112,10 +112,10 @@ struct thread
     bool child_success;                        /* Child creation success */
     struct semaphore parent_child_sync;        /* Semaphore for sync bet. child & parent */
     struct semaphore wait_child;               /* Semaphore for sync bet. child & parent */
-   //  struct list children;
+    tid_t waiting_on;                          /* tid of child we are waiting on */
     struct list children;
     struct list_elem childelem;                /* List child process element. */
-    int child_status;
+    int child_exit_status;                     /* The status by which the child exited */
     struct list *open_file;
     struct file *executable_file;
     int fd_last;

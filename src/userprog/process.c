@@ -136,16 +136,43 @@ start_process(void *file_name_)
 
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
+
+
 int process_wait(tid_t child_tid UNUSED)
 {
+  // search for child with Id = chikd_tid
+  struct thread *current_thread = thread_current ();
+  struct thread *child = NULL;
+  struct list_elem *elem = list_head (&current_thread->children);
+  while (elem != list_tail (&current_thread->children)){
+    elem = list_next (elem);
+    child = list_entry(elem, struct thread, childelem);
+    if (child->tid == child_tid && child->status != THREAD_DYING)
+      break;
+    child = NULL;
+  }
+  if (child == NULL)
+  {
+    return -1;
+  }
+  list_remove (elem);
+  current_thread->waiting_on = child_tid;
+  /* 
+    current thread => waiting 3al child
+    child => exiting (Remove mn l parent list & parent is waiting ??
+                                          YES : sa7ey l parent dah and exit
+                                          NO :  exit )
+    
+  */
   /* Always between parent and child */
   /* Temp */
   /* In case one child */
-  printf ("(process_wait) : thread_current()->child_thread = %s\n",thread_current()->child_thread->name);
-  sema_up (&thread_current()->child_thread->parent_child_sync);
+  // printf ("(process_wait) : thread_current()->child_thread = %s\n",child->name);
+  sema_up (&child->parent_child_sync);
   printf ("(process_wait) : parent is waiting\n");
   sema_down (&thread_current()->parent_child_sync);
   printf ("(process_wait) : parent is awake\n");
+  return thread_current()->child_exit_status;
 }
 
 /* Free the current process's resources. */
