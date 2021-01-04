@@ -45,7 +45,7 @@ tid_t process_execute(const char *file_name)
   printf ("(process_execute) : exec_name %s\n",exec_name);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (exec_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (exec_name, PRI_DEFAULT, start_process, save_ptr);
 
   // tid = thread_create(exec_name, PRI_DEFAULT, start_process, args);
   
@@ -55,7 +55,12 @@ tid_t process_execute(const char *file_name)
   //Parent is here , child => start_process
   if (tid != TID_ERROR && thread_current()->child_success)
   {
-    /* Han push */
+      /* Han push */
+      // struct thread *parent_thread = thread_current ();
+      // struct child_process *child = malloc (sizeof(struct *child_process));;
+      // child->pid = tid;
+      // child->t = parent_thread->child_process;
+      // list_push_back(&parent_thread->child_process,&child->childelem);
   }
   else
   {
@@ -65,6 +70,7 @@ tid_t process_execute(const char *file_name)
   /* What if not success // Return TIDERROR or exit */ /* parrent.child_success */
   if (tid == TID_ERROR)
     palloc_free_page(fn_copy);
+  printf ("(process_execute) : done \n");
   return tid;
 }
 
@@ -74,7 +80,12 @@ static void
 start_process(void *file_name_)
 {
   char *file_name = file_name_;
-  printf("(start_process) : Start process %s\n",file_name);
+  file_name = palloc_get_page(0);
+  if (file_name == NULL)
+    return TID_ERROR;
+  strlcpy(file_name, file_name_, PGSIZE);
+
+  printf("(start_process) : Start process %s\n",thread_current ()->name);
   struct intr_frame if_;
   bool success;
 
@@ -85,17 +96,20 @@ start_process(void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load(file_name, &if_.eip, &if_.esp);
   printf("(start_process) : done loading \n");
-  sema_up(&thread_current()->parent_child_sync);
+  sema_up(&thread_current()->parent_thread->parent_child_sync);
   thread_current()->parent_thread->child_success = success;
-
+  printf("(start_process) : Sema UP DOWN \n");
   /* Push arguments to our stack */
 
   /* If load failed, quit. */
+  printf ("(start_process) : %s\n",file_name);
   palloc_free_page(file_name);
   if (!success)
     thread_exit();
 
-  sema_down(&thread_current()->parent_child_sync);
+  printf ("(start_process) : Child will sleep\n");
+  sema_down (&thread_current()->parent_child_sync);
+  printf ("(start_process) : Child is awake\n");
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -123,10 +137,12 @@ int process_wait(tid_t child_tid UNUSED)
 {
   /* Always between parent and child */
   /* Temp */
-  while (true)
-  {
-    thread_yield();
-  }
+  /* In case one child */
+  printf ("(process_wait) : thread_current()->child_thread = %s\n",thread_current()->child_thread->name);
+  sema_up (&thread_current()->child_thread->parent_child_sync);
+  printf ("(process_wait) : parent is waiting\n");
+  sema_down (&thread_current()->parent_child_sync);
+  printf ("(process_wait) : parent is awake\n");
 }
 
 /* Free the current process's resources. */
@@ -468,8 +484,10 @@ setup_stack(void **esp, const char *file_name)
   if (kpage != NULL)
   {
     success = install_page(((uint8_t *)PHYS_BASE) - PGSIZE, kpage, true);
-    if (success)
+    if (success){
       *esp = PHYS_BASE;
+      printf ("(setup_stack) : esp = %x\n",*esp);
+    }
     else
       palloc_free_page(kpage);
   }
@@ -482,60 +500,40 @@ setup_stack(void **esp, const char *file_name)
 void parse_arg(const char *file_name, void **esp)
 {
   int argc = 0;
-  char *argv [4];
-  char **argv_address;
+  char *argv [5];
+  char *argv_address [5];
   char *save_ptr;
+
+  struct thread *current_thread = thread_current ();
+  argv[argc++] = current_thread->name + '\0';
+
   char *token = strtok_r(file_name, " ", &save_ptr);
-  //strlcat (token, '/0', size_t size)
-  
 
   while (token != '\0')
-  { 
-    printf ("(parse_arg) #2 : %s\n",token);
+  {
     argv[argc++] = token + '\0';
     token = strtok_r(NULL, " ", &save_ptr);
-    printf ("(parse_arg) #3 : %s\n",token);
   }
-
-  printf ("(parse_arg) #4 : %s\n",file_name);
-  printf ("(parse_arg) #5 : %d\n",argc);
-  printf ("(parse_arg) #6 : %ud\n",(unsigned int)esp);
-
-  // /* Start from shell */
-  // char *token = strtok(file_name, " "); 
-  // while (token != NULL) { 
-  //     printf ("(parse_arg) #2 : %s\n",token);
-  //     argv[argc++] = token;
-  //     token = strtok(NULL, " "); 
-  //     printf ("(parse_arg) #3 : %s\n",token);
-  // } 
-  // argv[argc] = NULL;
-  // printf ("(parse_arg) #4 : %s\n",token);
-  /* End from shell */  
-
 
   for (int j = argc - 1; j >= 0; j--)
   {
-    *esp -= strlen(argv[j]);
-    memcpy(*esp, argv[j], strlen(argv[j]));
+    *esp -= sizeof(char) * (strlen(argv[j])+1);
+    memcpy(*esp, argv[j], sizeof(char) * (strlen(argv[j])+1));
     argv_address[j] = *esp;
   }
 
-  uint8_t word_align = (4 - ((int)*esp % 4)) % 4;
+  uint8_t word_align = (4 + ((int)*esp%4))% 4;
   *esp -= word_align;
   memset(*esp, 0, word_align);
 
-  memset(*esp, 0, 4);
+  *esp -= 4 * (sizeof (char));
+  memset(*esp, 0, (4 * sizeof (char)));
 
-  for (int j = argc - 1; j >= 0; j--)
-  {
-    *esp -= sizeof(argv_address[j]);
-    memcpy(*esp, argv_address[j], sizeof(argv_address[j]));
-  }
+  *esp -= argc * sizeof(char**);
+  memcpy(*esp, argv_address, argc * sizeof(char**));
 
-  char **temp = *esp;
-  *esp -= sizeof(temp);
-  memcpy(*esp, temp, sizeof(temp));
+  memcpy(*esp - sizeof(char**), esp, sizeof(char**));
+  *esp -= sizeof(char**);
 
   *esp -= sizeof(argc);
   memcpy(*esp, &argc, sizeof(argc));
@@ -543,7 +541,11 @@ void parse_arg(const char *file_name, void **esp)
   void *null_ = NULL;
   *esp -= sizeof(null_);
   memcpy(*esp, &null_, sizeof(null_));
+  
+  printf ("00000000  00 01 02 03 04 05 06 07-08 09 0A 0B 0C 0D 0E 0F\n");
+  hex_dump((uintptr_t)*esp, *esp, sizeof(char) * 100, true);
 
+  printf ("(parse_arg) #7 : esp = %x\n(parse_arg) : DONE\n",*esp);
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel

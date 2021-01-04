@@ -226,9 +226,9 @@ thread_create (const char *name, int priority,
  
   /* Linking child and parent processes */ 
   struct thread *parent_thread = thread_current ();
-  parent_thread->child_process = t;
+  parent_thread->child_thread = t;
   t->parent_thread = parent_thread;
-
+  
   /*set nice value for new thread that equals to parent nice value 
   and in case of idle_thread it equals to zero
   set recent_cpu value for new thread that equals to zero*/

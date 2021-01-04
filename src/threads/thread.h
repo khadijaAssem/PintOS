@@ -107,16 +107,39 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    struct thread* child_process;               /* Child of this thread */
+    struct thread* child_thread;               /* Child of this thread */
     struct thread* parent_thread;              /* Child of this thread */
     bool child_success;                        /* Child creation success */
     struct semaphore parent_child_sync;        /* Semaphore for sync bet. child & parent */
     struct semaphore wait_child;               /* Semaphore for sync bet. child & parent */
+    struct list* child_process;
+    struct list_elem childelem;               /* List child process element. */
+    int child_status;
+    struct list open_file;
+    struct file* executable_file;
+    int fd_last;
+
+   // uint32_t *pagedir; /* Page directory. */
 #endif
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
+
+ 
+struct open_file
+{
+   int fd;
+   struct file* ptr;
+   struct list_elem fileelem;
+};
+ 
+struct child_process
+{
+   int pid;
+   struct thread* t;
+   struct list_elem childelem;
+};
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.

@@ -114,9 +114,11 @@ main (void)
   exception_init ();
   syscall_init ();
 #endif
+  printf ("(main) : Initializing\n");
 
   /* Start thread scheduler and enable interrupts. */
   thread_start ();
+  printf ("(main) : Initializing\n");
   serial_init_queue ();
   timer_calibrate ();
 
@@ -282,6 +284,7 @@ static void
 run_task (char **argv)
 {
   const char *task = argv[1];
+  printf ("(run_task) : %s\n", task);
   
   printf ("Executing '%s':\n", task);
 #ifdef USERPROG

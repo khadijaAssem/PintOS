@@ -33,6 +33,8 @@
         "stdexcept": "c",
         "streambuf": "c",
         "string_view": "c",
-        "exception": "c"
+        "exception": "c",
+        "deque": "cpp",
+        "vector": "cpp"
     }
 }
