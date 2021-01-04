@@ -40,9 +40,9 @@ tid_t process_execute(const char *file_name)
   char *save_ptr;
   char *exec_name = strtok_r(fn_copy, " ", &save_ptr);
 
-  printf ("(process_execute) : fn_copy %s\n",fn_copy);
-  printf ("(process_execute) : save_ptr %s\n",save_ptr);
-  printf ("(process_execute) : exec_name %s\n",exec_name);
+  // printf ("(process_execute) : fn_copy %s\n",fn_copy);
+  // printf ("(process_execute) : save_ptr %s\n",save_ptr);
+  // printf ("(process_execute) : exec_name %s\n",exec_name);
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (exec_name, PRI_DEFAULT, start_process, save_ptr);
@@ -51,7 +51,7 @@ tid_t process_execute(const char *file_name)
   
   //Parent wait for child to know if child creation was success 
   sema_down(&thread_current()->parent_child_sync);
-  printf ("(process_execute) : Executing %d\n",tid);
+  // printf ("(process_execute) : Executing %d\n",tid);
   //Parent is here , child => start_process
   if (tid != TID_ERROR && thread_current()->child_success)
   {
@@ -59,7 +59,7 @@ tid_t process_execute(const char *file_name)
       struct thread *parent_thread = thread_current ();
       struct thread *child = parent_thread->child_thread;
 
-      printf ("(process_execute) : pushing child of tid = %d \n",tid);
+      // printf ("(process_execute) : current list being pushed of tid = %d \n",parent_thread->tid);
       list_push_back(&parent_thread->children,&child->childelem);
       // child->t = parent_thread->childsren;
 
@@ -73,7 +73,7 @@ tid_t process_execute(const char *file_name)
   /* What if not success // Return TIDERROR or exit */ /* parrent.child_success */
   if (tid == TID_ERROR)
     palloc_free_page(fn_copy);
-  printf ("(process_execute) : done \n");
+  // printf ("(process_execute) : done \n");
   return tid;
 }
 
@@ -88,7 +88,7 @@ start_process(void *file_name_)
     return TID_ERROR;
   strlcpy(file_name, file_name_, PGSIZE);
 
-  printf("(start_process) : Start process %s\n",thread_current ()->name);
+  // printf("(start_process) : Start process %s\n",thread_current ()->name);
   struct intr_frame if_;
   bool success;
 
@@ -98,21 +98,21 @@ start_process(void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load(file_name, &if_.eip, &if_.esp);
-  printf("(start_process) : done loading \n");
+  // printf("(start_process) : done loading \n");
   sema_up(&thread_current()->parent_thread->parent_child_sync);
   thread_current()->parent_thread->child_success = success;
-  printf("(start_process) : Sema UP DOWN \n");
+  // printf("(start_process) : Sema UP DOWN \n");
   /* Push arguments to our stack */
 
   /* If load failed, quit. */
-  printf ("(start_process) : %s\n",file_name);
+  // printf ("(start_process) : %s\n",file_name);
   palloc_free_page(file_name);
   if (!success)
     thread_exit();
 
-  printf ("(start_process) : Child will sleep\n");
+  // printf ("(start_process) : Child will sleep\n");
   sema_down (&thread_current()->parent_child_sync);
-  printf ("(start_process) : Child is awake\n");
+  // printf ("(start_process) : Child is awake\n");
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -140,23 +140,29 @@ start_process(void *file_name_)
 
 int process_wait(tid_t child_tid UNUSED)
 {
+  // printf ("(process_wait) : start process wait\n");
   // search for child with Id = chikd_tid
   struct thread *current_thread = thread_current ();
+  // printf ("(process_execute) : current list being pushed of tid = %d \n",current_thread->tid);
   struct thread *child = NULL;
-  struct list_elem *elem = list_head (&current_thread->children);
+  struct list_elem *elem = list_begin (&current_thread->children);
   while (elem != list_tail (&current_thread->children)){
-    elem = list_next (elem);
+    // printf ("(process_wait) : iam on while now\n");
     child = list_entry(elem, struct thread, childelem);
+    // printf ("(process_wait) : %d %d\n",child->tid,child_tid);
     if (child->tid == child_tid && child->status != THREAD_DYING)
       break;
+    elem = list_next (elem);
     child = NULL;
   }
   if (child == NULL)
   {
+    // printf ("(process_wait) : child is null\n");
     return -1;
   }
   list_remove (elem);
   current_thread->waiting_on = child_tid;
+  // printf ("(process_wait) : %d waiting on %d\n",thread_current ()->tid,child_tid);
   /* 
     current thread => waiting 3al child
     child => exiting (Remove mn l parent list & parent is waiting ??
@@ -169,22 +175,24 @@ int process_wait(tid_t child_tid UNUSED)
   /* In case one child */
   // printf ("(process_wait) : thread_current()->child_thread = %s\n",child->name);
   sema_up (&child->parent_child_sync);
-  printf ("(process_wait) : parent is waiting\n");
-  sema_down (&thread_current()->parent_child_sync);
-  printf ("(process_wait) : parent is awake\n");
+  // printf ("(process_wait) : parent is waiting %d\n",thread_current()->tid);
+  sema_down (&thread_current()->wait_child);
+  // printf ("(process_wait) : parent is awake\n");
   return thread_current()->child_exit_status;
 }
 
 /* Free the current process's resources. */
 void process_exit(void)
 {
-  printf ("(process_exit) : Entered \n");
+  // printf ("(process_exit) : Entered \n");
   struct thread *cur = thread_current();
   uint32_t *pd;
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
+  // printf ("(process_exit) : Here \n");
   pd = cur->pagedir;
+  // printf ("(process_exit) : Here \n");
   if (pd != NULL)
   {
     /* Correct ordering here is crucial.  We must set
@@ -198,6 +206,8 @@ void process_exit(void)
     pagedir_activate(NULL);
     pagedir_destroy(pd);
   }
+  sema_up(&thread_current()->parent_thread->wait_child);
+  // printf ("(process_exit) : Here %d \n",thread_current()->parent_thread->tid);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -304,10 +314,10 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
   process_activate();
 
   /* Open executable file. */
-  printf ("(load) : #1 %s\n",t->name);
-  printf ("(load) : #1 %s\n",file_name);
+  // printf ("(load) : #1 %s\n",t->name);
+  // printf ("(load) : #1 %s\n",file_name);
   file = filesys_open(t->name);
-  printf ("(load) : #2 %s\n",file_name);
+  // printf ("(load) : #2 %s\n",file_name);
   if (file == NULL)
   {
     printf ("load: %s: open failed\n", t->name);
@@ -390,7 +400,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
 
 done:
   /* We arrive here whether the load is successful or not. */
-  //file_deny_write (file); /* Khaled */
+  // file_deny_write (file); /* Khaled */
   file_close(file);
   return success;
 }
@@ -517,12 +527,12 @@ setup_stack(void **esp, const char *file_name)
     success = install_page(((uint8_t *)PHYS_BASE) - PGSIZE, kpage, true);
     if (success){
       *esp = PHYS_BASE;
-      printf ("(setup_stack) : esp = %x\n",*esp);
+      // printf ("(setup_stack) : esp = %x\n",*esp);
     }
     else
       palloc_free_page(kpage);
   }
-  printf ("(setup_stack) : %s\n",file_name);
+  // printf ("(setup_stack) : %s\n",file_name);
   parse_arg(file_name, esp);
 
   return success;
@@ -573,10 +583,10 @@ void parse_arg(const char *file_name, void **esp)
   *esp -= sizeof(null_);
   memcpy(*esp, &null_, sizeof(null_));
   
-  printf ("00000000  00 01 02 03 04 05 06 07-08 09 0A 0B 0C 0D 0E 0F\n");
-  hex_dump((uintptr_t)*esp, *esp, sizeof(char) * 100, true);
+  // printf ("00000000  00 01 02 03 04 05 06 07-08 09 0A 0B 0C 0D 0E 0F\n");
+  // hex_dump((uintptr_t)*esp, *esp, sizeof(char) * 100, true);
 
-  printf ("(parse_arg) #7 : esp = %x\n(parse_arg) : DONE\n",*esp);
+  // printf ("(parse_arg) #7 : esp = %x\n(parse_arg) : DONE\n",*esp);
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
