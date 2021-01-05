@@ -531,11 +531,11 @@ init_thread (struct thread *t, const char *name, int priority)
   t->number = num++;
   t->child_success = false;
 
-  list_init(&t->open_file);
+  list_init(&t->open_files);
 
   t->waiting_on = -1;
-  // t->child_status = 0;
-  // t->fd_last = 0;
+  t->child_exit_status = 0;
+  t->fd_last = 1;
 
   sema_init(&t->wait_child, 0);
   sema_init(&t->parent_child_sync, 0);

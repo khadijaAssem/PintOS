@@ -1,5 +1,7 @@
 #include "userprog/syscall.h"
 #include "filesys/filesys.h"
+#include "filesys/inode.h"
+#include "filesys/file.h"
 #include <stdio.h>
 #include "kernel/stdio.h"
 #include <syscall-nr.h>
@@ -8,10 +10,12 @@
 #include "threads/vaddr.h"
 #include "filesys/file.h"
 #include "userprog/pagedir.h"
+#include "threads/malloc.h"
 
 typedef int pid_t;
 
 static void syscall_handler (struct intr_frame *);
+struct list_elem *get_target_fileelem(int fd);
 
 static struct lock files_sync_lock;     /*lock for sychronization between files */
 int get_int(int *esp);                  /*get int from the stack*/
@@ -23,10 +27,8 @@ struct file *get_target_file(int fd);
  
 void syscall_init(void)
 {
-  // printf ("(syscall_init) : Initializing START\n");
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
   lock_init(&files_sync_lock);
-  // printf ("(syscall_init) : Initializing DONE\n");
 }
 
 static void
@@ -86,6 +88,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
     case SYS_FILESIZE:
     {
+      filesize_wrapper(f);
       break;
     }
     case SYS_READ:
@@ -108,6 +111,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
     case SYS_CLOSE:
     {
+      close_wrapper(f);
       break;
     }
     default:
@@ -117,19 +121,41 @@ syscall_handler (struct intr_frame *f UNUSED)
   }
 }
 
+void close_wrapper(struct intr_frame *f UNUSED) 
+{
+  int* fd = f->esp + sizeof(int*);
+  close (*fd);  
+}
+
+void close (int fd)
+{
+
+  if (fd == 1 || fd == 0) exit (-1);
+  struct list_elem *fileelm = get_target_fileelem(fd);
+  // printf ("(close) : HERE!\n");
+  if (fileelm == NULL) exit (-1);
+  struct open_file *file = list_entry(fileelm, struct open_file, fileelem);
+  // struct open_file *file = list_entry(fileelm, struct open_file, fileelem);
+  lock_acquire (&files_sync_lock);
+  file_close (file->ptr);
+  list_remove (fileelm);
+  lock_release (&files_sync_lock);
+}
+
 bool create(const char* file, unsigned initial_size)
 {
-  // lock_acquire
   return filesys_create (file ,initial_size);
 }
 
 void create_wrapper (struct intr_frame *f UNUSED)
 {
-  char* file = *(char *)f->esp + 3;
-  unsigned size = *((unsigned*)f->esp + 6);
-  printf ("(create_wrapper) : creating .......\n");
-  // printf ("(create_wrapper) : HEH \n");
-  f->eax = create (file, size);
+  char** file = f->esp + sizeof(int*);
+  unsigned* size = (f->esp) + sizeof(int*) + sizeof(char*);
+
+  if (*file == NULL)
+    exit (-1);
+  
+  f->eax = create (*file, *size);
 }
 
 void validate_void_ptr(const void *pt)
@@ -148,13 +174,28 @@ void validate_void_ptr(const void *pt)
 
 void open_wrapper(struct intr_frame *f UNUSED)
 {
-  void* buffer = get_void_ptr(f->esp);
-  // printf ("(open_wrapper) : Openning \n");
-  lock_acquire (&files_sync_lock);
-  filesys_open (buffer);  
-  lock_release (&files_sync_lock);
+  char** file = f->esp + sizeof(int*);
+  f->eax = open (*file);
 }
- 
+
+int open(const char* file) 
+{
+  if (file == NULL) exit (-1);
+  int ret = 0;
+  lock_acquire(&files_sync_lock);
+  struct file *of = filesys_open(file);
+  lock_release(&files_sync_lock);
+
+  if (of == NULL) return -1;
+
+  thread_current()->fd_last++;
+  struct open_file open = {.ptr = of, .fd = thread_current()->fd_last};
+
+  list_push_back(&thread_current()->open_files, &open.fileelem);
+
+  return open.fd;
+}
+
 void write_wrapper(struct intr_frame *f UNUSED)
 {
   // printf ("(write_wrapper) : beging write wrapper\n");
@@ -223,13 +264,26 @@ int write(int fd, const void *buffer, unsigned size)
     return returned;
   }
 }
+
+int filesize(int fd)
+{
+  struct file *target_file = get_target_file(fd);
+  if(target_file == NULL) return -1;
+  return file_length(target_file);
+}
+
+void filesize_wrapper(struct intr_frame *f UNUSED)
+{
+  int fd = f->esp + sizeof(int *);
+  f->eax = filesize(fd);
+}
  
 struct file *get_target_file(int fd)
 {
-  struct list_elem *e = list_head(&thread_current()->open_file);
-  struct list *open_list = &thread_current()->open_file;
-  struct file *target_file;
-  while (e != list_tail(&thread_current()->open_file))
+  struct list_elem *e = list_head(&thread_current()->open_files);
+  struct list *open_list = &thread_current()->open_files;
+  struct file *target_file = NULL;
+  while (e != list_tail(&thread_current()->open_files))
   {
     e = list_next(e);
     struct open_file *file = list_entry(e, struct open_file, fileelem);
@@ -240,6 +294,20 @@ struct file *get_target_file(int fd)
     }
   }
   return target_file;
+}
+
+struct list_elem *get_target_fileelem(int fd)
+{
+  struct list_elem *e = list_head(&thread_current()->open_files);
+
+  while (e != list_tail(&thread_current()->open_files))
+  {
+    e = list_next(e);
+    struct open_file *file = list_entry(e, struct open_file, fileelem);
+    if (file->fd == fd) return e;
+  }
+
+  return NULL;
 }
  
 void exit(int status)
@@ -322,18 +390,22 @@ pid_t exec(const char* cmd_line)
 void read_wrapper(struct intr_frame *f UNUSED)
 {
   printf("(read_wrapper) : beging read wrapper\n");
+  
+  int *fd = f->esp + sizeof(int*);
+  void **buffer = f->esp + 2*sizeof(int*);
+  // void *buffer = f->esp + sizeof(int*) + sizeof(int*);
+  unsigned *size = (f->esp) + 2*sizeof(int*) + sizeof(void**);
+
+  printf ("(syscall_handler) : esp initially at %x\n",f->esp);
+  printf ("00000000  00 01 02 03 04 05 06 07-08 09 0A 0B 0C 0D 0E 0F\n");
+  hex_dump((uintptr_t)(f->esp), f->esp, sizeof(char) * 100, true); 
  
-  int fd = get_int(f->esp);
-  void *buffer = get_void_ptr(f->esp);
-  unsigned size = get_unsigned(f->esp);
-  printf("(read_wrapper) : file descriptor (ID) %d \n", fd);
- 
-  f->eax = read(fd, buffer, size);
+  f->eax = read(*fd, *buffer, *size);
 }
  
 int read(int fd, const void *buffer, unsigned size)
 {
-  printf("(write) : reading #1 ! %d\n", fd);
+  printf("(read) : reading #1 ! %d\n", fd);
   if (fd == 1)
   {
     //negative area
@@ -363,8 +435,6 @@ int read(int fd, const void *buffer, unsigned size)
     return returned;
   }
 }
- 
-
  
 int get_int(int *esp)
 {

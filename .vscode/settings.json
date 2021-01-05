@@ -36,6 +36,8 @@
         "exception": "c",
         "deque": "cpp",
         "vector": "cpp",
-        "cstdlib": "c"
+        "cstdlib": "c",
+        "initializer_list": "c",
+        "new": "c"
     }
 }

@@ -116,8 +116,7 @@ struct thread
     struct list children;
     struct list_elem childelem;                /* List child process element. */
     int child_exit_status;                     /* The status by which the child exited */
-    struct list *open_file;
-    struct file *executable_file;
+    struct list open_files;
     int fd_last;
 
    // uint32_t *pagedir; /* Page directory. */
@@ -133,13 +132,6 @@ struct open_file
    int fd;
    struct file* ptr;
    struct list_elem fileelem;
-};
- 
-struct child_process
-{
-   int pid;
-   struct thread* t;
-   struct list_elem childelem;
 };
 
 /* If false (default), use round-robin scheduler.
