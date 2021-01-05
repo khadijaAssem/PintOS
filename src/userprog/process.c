@@ -388,7 +388,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
       break;
     }
   }
-
+  // printf ("(load) : IAM HERE\n");
   /* Set up stack. */
   if (!setup_stack(esp, file_name))
     goto done;
@@ -520,6 +520,7 @@ setup_stack(void **esp, const char *file_name)
 {
   uint8_t *kpage;
   bool success = false;
+  // printf ("(setup_stack) : Start setup stack \n");
 
   kpage = palloc_get_page(PAL_USER | PAL_ZERO);
   if (kpage != NULL)
@@ -527,7 +528,7 @@ setup_stack(void **esp, const char *file_name)
     success = install_page(((uint8_t *)PHYS_BASE) - PGSIZE, kpage, true);
     if (success){
       *esp = PHYS_BASE;
-      // printf ("(setup_stack) : esp = %x\n",*esp);
+      // printf ("(setup_stack) : esp = %x \n",*esp);
     }
     else
       palloc_free_page(kpage);
@@ -540,9 +541,10 @@ setup_stack(void **esp, const char *file_name)
 
 void parse_arg(const char *file_name, void **esp)
 {
+  // printf ("(parse_arg) : Start setup stack \n");
   int argc = 0;
-  char *argv [5];
-  char *argv_address [5];
+  char *argv [100];
+  char *argv_address [100];
   char *save_ptr;
 
   struct thread *current_thread = thread_current ();
