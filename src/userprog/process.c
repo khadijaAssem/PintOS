@@ -25,13 +25,16 @@ static bool load(const char *cmdline, void (**eip)(void), void **esp);
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
-tid_t process_execute(const char *file_name)
+
+tid_t 
+process_execute(const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
+
   fn_copy = palloc_get_page(0);
   if (fn_copy == NULL)
     return TID_ERROR;
@@ -40,40 +43,23 @@ tid_t process_execute(const char *file_name)
   char *save_ptr;
   char *exec_name = strtok_r(fn_copy, " ", &save_ptr);
 
-  // printf ("(process_execute) : fn_copy %s\n",fn_copy);
-  // printf ("(process_execute) : save_ptr %s\n",save_ptr);
-  // printf ("(process_execute) : exec_name %s\n",exec_name);
-
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (exec_name, PRI_DEFAULT, start_process, save_ptr);
 
-  // tid = thread_create(exec_name, PRI_DEFAULT, start_process, args);
-  
-  //Parent wait for child to know if child creation was success 
   sema_down(&thread_current()->parent_child_sync);
-  // printf ("(process_execute) : Executing %d\n",tid);
-  //Parent is here , child => start_process
+  
   if (tid != TID_ERROR && thread_current()->child_success)
   {
-      /* Han push */
-      struct thread *parent_thread = thread_current ();
-      struct thread *child = parent_thread->child_thread;
+    /* push child in parents list */
+    struct thread *parent_thread = thread_current ();
+    struct thread *child = parent_thread->child_thread;
 
-      // printf ("(process_execute) : current list being pushed of tid = %d \n",parent_thread->tid);
-      list_push_back(&parent_thread->children,&child->childelem);
-      // child->t = parent_thread->childsren;
-
-      // list_push_back(&parent_thread->children,&child->childelem);
+    list_push_back(&thread_current()->children,&child->childelem);
   }
   else
   {
     tid = TID_ERROR;
   }
-  
-  /* What if not success // Return TIDERROR or exit */ /* parrent.child_success */
-  if (tid == TID_ERROR)
-    palloc_free_page(fn_copy);
-  // printf ("(process_execute) : done \n");
   return tid;
 }
 
@@ -83,12 +69,9 @@ static void
 start_process(void *file_name_)
 {
   char *file_name = file_name_;
-  file_name = palloc_get_page(0);
-  if (file_name == NULL)
+  if (file_name == NULL || file_name_==NULL)
     return TID_ERROR;
-  strlcpy(file_name, file_name_, PGSIZE);
 
-  // printf("(start_process) : Start process %s\n",thread_current ()->name);
   struct intr_frame if_;
   bool success;
 
@@ -98,21 +81,21 @@ start_process(void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load(file_name, &if_.eip, &if_.esp);
-  // printf("(start_process) : done loading \n");
-  sema_up(&thread_current()->parent_thread->parent_child_sync);
+
   thread_current()->parent_thread->child_success = success;
-  // printf("(start_process) : Sema UP DOWN \n");
-  /* Push arguments to our stack */
 
   /* If load failed, quit. */
-  // printf ("(start_process) : %s\n",file_name);
-  palloc_free_page(file_name);
-  if (!success)
+  palloc_free_page(pg_round_down(file_name));
+  if (!success){
+    sema_up(&thread_current()->parent_thread->parent_child_sync);
     thread_exit();
+  }
 
-  // printf ("(start_process) : Child will sleep\n");
+  /* waking up parent */
+  sema_up(&thread_current()->parent_thread->parent_child_sync);
+
+  /* child will sleep */
   sema_down (&thread_current()->parent_child_sync);
-  // printf ("(start_process) : Child is awake\n");
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -137,62 +120,44 @@ start_process(void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 
-
-int process_wait(tid_t child_tid UNUSED)
+int 
+process_wait(tid_t child_tid UNUSED)
 {
-  // printf ("(process_wait) : start process wait\n");
-  // search for child with Id = chikd_tid
   struct thread *current_thread = thread_current ();
-  // printf ("(process_execute) : current list being pushed of tid = %d \n",current_thread->tid);
+  
   struct thread *child = NULL;
   struct list_elem *elem = list_begin (&current_thread->children);
+
   while (elem != list_tail (&current_thread->children)){
-    // printf ("(process_wait) : iam on while now\n");
     child = list_entry(elem, struct thread, childelem);
-    // printf ("(process_wait) : %d %d\n",child->tid,child_tid);
-    if (child->tid == child_tid && child->status != THREAD_DYING)
+    if (child->tid == child_tid )
       break;
     elem = list_next (elem);
     child = NULL;
   }
-  if (child == NULL)
-  {
-    // printf ("(process_wait) : child is null\n");
-    return -1;
-  }
-  list_remove (elem);
+
+  if (child_tid == TID_ERROR || child == NULL)
+    return TID_ERROR;
+
   current_thread->waiting_on = child_tid;
-  // printf ("(process_wait) : %d waiting on %d\n",thread_current ()->tid,child_tid);
-  /* 
-    current thread => waiting 3al child
-    child => exiting (Remove mn l parent list & parent is waiting ??
-                                          YES : sa7ey l parent dah and exit
-                                          NO :  exit )
-    
-  */
-  /* Always between parent and child */
-  /* Temp */
-  /* In case one child */
-  // printf ("(process_wait) : thread_current()->child_thread = %s\n",child->name);
+  list_remove (&child->childelem);
+  /* waking uo child */
   sema_up (&child->parent_child_sync);
-  // printf ("(process_wait) : parent is waiting %d\n",thread_current()->tid);
-  sema_down (&thread_current()->wait_child);
-  // printf ("(process_wait) : parent is awake\n");
+  /* sleeping the parent*/
+  sema_down (&thread_current()->parent_child_sync);
   return thread_current()->child_exit_status;
 }
 
 /* Free the current process's resources. */
-void process_exit(void)
+void 
+process_exit(void)
 {
-  // printf ("(process_exit) : Entered \n");
   struct thread *cur = thread_current();
   uint32_t *pd;
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
-  // printf ("(process_exit) : Here \n");
   pd = cur->pagedir;
-  // printf ("(process_exit) : Here \n");
   if (pd != NULL)
   {
     /* Correct ordering here is crucial.  We must set
@@ -206,14 +171,13 @@ void process_exit(void)
     pagedir_activate(NULL);
     pagedir_destroy(pd);
   }
-  sema_up(&thread_current()->parent_thread->wait_child);
-  // printf ("(process_exit) : Here %d \n",thread_current()->parent_thread->tid);
 }
 
 /* Sets up the CPU for running user code in the current
    thread.
    This function is called on every context switch. */
-void process_activate(void)
+void 
+process_activate(void)
 {
   struct thread *t = thread_current();
 
@@ -298,7 +262,8 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
    Stores the executable's entry point into *EIP
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
-bool load(const char *file_name, void (**eip)(void), void **esp)
+bool 
+load(const char *file_name, void (**eip)(void), void **esp)
 {
   struct thread *t = thread_current();
   struct Elf32_Ehdr ehdr;
@@ -314,10 +279,8 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
   process_activate();
 
   /* Open executable file. */
-  // printf ("(load) : #1 %s\n",t->name);
-  // printf ("(load) : #1 %s\n",file_name);
   file = filesys_open(t->name);
-  // printf ("(load) : #2 %s\n",file_name);
+
   if (file == NULL)
   {
     printf ("load: %s: open failed\n", t->name);
@@ -327,7 +290,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
   /* Read and verify executable header. */
   if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr || memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) || ehdr.e_type != 2 || ehdr.e_machine != 3 || ehdr.e_version != 1 || ehdr.e_phentsize != sizeof(struct Elf32_Phdr) || ehdr.e_phnum > 1024)
   {
-    printf("load: %s: error loading executable\n", t->name);
+    printf("load: %s: error loading execuprintftable\n", t->name);
     goto done;
   }
 
@@ -388,7 +351,6 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
       break;
     }
   }
-  // printf ("(load) : IAM HERE\n");
   /* Set up stack. */
   if (!setup_stack(esp, file_name))
     goto done;
@@ -400,8 +362,11 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
 
 done:
   /* We arrive here whether the load is successful or not. */
-  // file_deny_write (file); /* Khaled */
-  file_close(file);
+  if (success) {
+    thread_current()->executable = file;
+    file_deny_write (thread_current()->executable);
+  }
+  else file_close(file);
   return success;
 }
 
@@ -520,7 +485,6 @@ setup_stack(void **esp, const char *file_name)
 {
   uint8_t *kpage;
   bool success = false;
-  // printf ("(setup_stack) : Start setup stack \n");
 
   kpage = palloc_get_page(PAL_USER | PAL_ZERO);
   if (kpage != NULL)
@@ -528,20 +492,19 @@ setup_stack(void **esp, const char *file_name)
     success = install_page(((uint8_t *)PHYS_BASE) - PGSIZE, kpage, true);
     if (success){
       *esp = PHYS_BASE;
-      // printf ("(setup_stack) : esp = %x \n",*esp);
     }
     else
       palloc_free_page(kpage);
   }
-  // printf ("(setup_stack) : %s\n",file_name);
   parse_arg(file_name, esp);
 
   return success;
 }
 
-void parse_arg(const char *file_name, void **esp)
+/* Pushing arguments to stack */
+void 
+parse_arg(const char *file_name, void **esp)
 {
-  // printf ("(parse_arg) : Start setup stack \n");
   int argc = 0;
   char *argv [100];
   char *argv_address [100];
@@ -584,11 +547,7 @@ void parse_arg(const char *file_name, void **esp)
   void *null_ = NULL;
   *esp -= sizeof(null_);
   memcpy(*esp, &null_, sizeof(null_));
-  
-  // printf ("00000000  00 01 02 03 04 05 06 07-08 09 0A 0B 0C 0D 0E 0F\n");
-  // hex_dump((uintptr_t)*esp, *esp, sizeof(char) * 100, true);
 
-  // printf ("(parse_arg) #7 : esp = %x\n(parse_arg) : DONE\n",*esp);
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel

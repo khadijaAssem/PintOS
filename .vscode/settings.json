@@ -38,6 +38,8 @@
         "vector": "cpp",
         "cstdlib": "c",
         "initializer_list": "c",
-        "new": "c"
+        "new": "c",
+        "iosfwd": "c",
+        "sstream": "c"
     }
 }

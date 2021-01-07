@@ -1,6 +1,5 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
-#define USERPROG
 
 #include <debug.h>
 #include <list.h>
@@ -91,7 +90,7 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
-    int original_priority;             /* original Priority. */
+    int original_priority;              /* original Priority. */
     struct list_elem timerelem;         /* List element for timer threads list. */
     int64_t wake_up_time;               /* Wake up time. */
     struct list_elem allelem;           /* List element for all threads list. */
@@ -106,19 +105,18 @@ struct thread
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
-    uint32_t *pagedir;                         /* Page directory. */
     struct thread *child_thread;               /* Child of this thread */
     struct thread *parent_thread;              /* Child of this thread */
     bool child_success;                        /* Child creation success */
     struct semaphore parent_child_sync;        /* Semaphore for sync bet. child & parent */
-    struct semaphore wait_child;               /* Semaphore for sync bet. child & parent */
     tid_t waiting_on;                          /* tid of child we are waiting on */
-    struct list children;
-    struct list_elem childelem;                /* List child process element. */
+    struct list children;                      /* List of opened files */
+    struct list_elem childelem;                /* List child processes. */
     int child_exit_status;                     /* The status by which the child exited */
-    struct list open_files;
-    int fd_last;
-
+    struct list open_files;                    /* List of opened files */
+    int fd_last;                               /* Counting opened files */
+    struct file *executable;                   /* Current executing file */
+    uint32_t *pagedir;                         /* Page directory. */
    // uint32_t *pagedir; /* Page directory. */
 #endif
 
@@ -129,9 +127,9 @@ struct thread
  
 struct open_file
 {
-   int fd;
-   struct file* ptr;
-   struct list_elem fileelem;
+   int fd;                     /* File identifier */
+   struct file* ptr;           /* Pointer to the file */
+   struct list_elem fileelem;  /* List element for list of opened files */
 };
 
 /* If false (default), use round-robin scheduler.

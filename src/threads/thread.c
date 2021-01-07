@@ -225,9 +225,8 @@ thread_create (const char *name, int priority,
   tid = t->tid = allocate_tid ();
  
   /* Linking child and parent processes */ 
-  struct thread *parent_thread = thread_current ();
-  parent_thread->child_thread = t;
-  t->parent_thread = parent_thread;
+  t->parent_thread = thread_current ();
+  t->parent_thread->child_thread = t;
   
   /*set nice value for new thread that equals to parent nice value 
   and in case of idle_thread it equals to zero
@@ -537,7 +536,6 @@ init_thread (struct thread *t, const char *name, int priority)
   t->child_exit_status = 0;
   t->fd_last = 1;
 
-  sema_init(&t->wait_child, 0);
   sema_init(&t->parent_child_sync, 0);
   list_init(&t->children);
 
